@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from guardllm.api.v1.router import api_router
 from guardllm.core.config import settings
+from guardllm.services.gemini import gemini_client
 
 logging.basicConfig(
     level=logging.INFO if not settings.DEBUG else logging.DEBUG,
@@ -25,6 +26,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     yield
     logger.info("GuardLLM Gateway shutting down gracefully...")
+    await gemini_client.close()
 
 
 def create_application() -> FastAPI:

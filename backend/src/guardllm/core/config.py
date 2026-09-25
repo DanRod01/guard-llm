@@ -40,8 +40,20 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
     ]
 
-    # LLM Provider Secrets (Fase 4 - Fail-Closed Integration)
+    # LLM Provider Configuration (Google Gemini)
     GEMINI_API_KEY: str = Field(default="", description="Google Gemini API Key")
+    GEMINI_MODEL: str = Field(
+        default="gemini-1.5-flash",
+        description="Default Google Gemini model name",
+    )
+    GEMINI_API_BASE_URL: str = Field(
+        default="https://generativelanguage.googleapis.com/v1beta",
+        description="Base URL for Gemini API",
+    )
+    LLM_REQUEST_TIMEOUT_SECONDS: float = Field(
+        default=30.0,
+        description="Timeout in seconds for outbound calls to the LLM provider",
+    )
 
     @property
     def is_production(self) -> bool:
