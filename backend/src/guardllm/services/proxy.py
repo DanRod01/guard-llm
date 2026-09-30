@@ -2,6 +2,7 @@ import logging
 import time
 from typing import Any
 
+from guardllm.schemas.injection import InjectionVerdict
 from guardllm.schemas.proxy import (
     ProxyAuditMetadata,
     ProxyChatRequest,
@@ -9,26 +10,52 @@ from guardllm.schemas.proxy import (
     SecurityGateAudit,
 )
 from guardllm.schemas.sanitization import RedactedEntity
+from guardllm.security.injection.detector import (
+    InjectionDetector,
+    injection_detector,
+)
 from guardllm.security.sanitization.engine import SanitizerEngine, sanitizer_engine
 from guardllm.services.gemini import GeminiClient, gemini_client
 
 logger = logging.getLogger("guardllm.services.proxy")
 
 
+class PromptInjectionError(Exception):
+    """Exceção levantada quando uma tentativa de Prompt Injection é bloqueada."""
+
+    def __init__(self, verdict: InjectionVerdict) -> None:
+        super().__init__(
+            f"Tentativa de injeção detectada com risco {verdict.risk_score}"
+        )
+        self.verdict = verdict
+
+
 class ProxyService:
     """Orquestrador defensivo do Proxy Reversivo GuardLLM.
 
-    Executa a higienização de entrada (Inbound Gate), despacha para o modelo de LLM
-    e higieniza a resposta gerada (Outbound Gate).
+    Executa inspeção contra Prompt Injection (OWASP LLM01), higienização de entrada
+    (Inbound Gate), despacho para o LLM e higienização de saída (Outbound Gate).
     """
 
     def __init__(
         self,
         sanitizer: SanitizerEngine = sanitizer_engine,
         client: GeminiClient = gemini_client,
+        detector: InjectionDetector = injection_detector,
     ) -> None:
         self._sanitizer = sanitizer
         self._client = client
+        self._injection_detector = detector
+
+    def _extract_user_text(self, request: ProxyChatRequest) -> str:
+        """Extrai todo o conteúdo de texto do usuário para análise de segurança."""
+        if request.prompt:
+            return request.prompt
+        if request.messages:
+            return " ".join(
+                msg.content for msg in request.messages if msg.role != "model"
+            )
+        return ""
 
     def _prepare_gemini_payload(
         self, request: ProxyChatRequest
@@ -60,7 +87,6 @@ class ProxyService:
                 all_detected_entities.extend(inbound_res.entities_detected)
 
                 if msg.role == "system":
-                    # Diretiva de sistema para o modelo
                     system_instruction = inbound_res.sanitized_text
                 else:
                     gemini_role = (
@@ -86,7 +112,18 @@ class ProxyService:
         """Executa o pipeline defensivo completo ponta a ponta."""
         start_time = time.perf_counter()
 
-        # 1. Inbound Sanitization Gate (Proteção de Entrada)
+        # 1. Inspeção contra Prompt Injection e Jailbreak (OWASP LLM01)
+        user_text = self._extract_user_text(request)
+        injection_verdict = self._injection_detector.detect(user_text)
+
+        if injection_verdict.is_injection and request.block_on_injection:
+            logger.warning(
+                "Ataque de Prompt Injection neutralizado na borda! Score: %.2f",
+                injection_verdict.risk_score,
+            )
+            raise PromptInjectionError(injection_verdict)
+
+        # 2. Inbound Sanitization Gate (Proteção de PII e Segredos)
         contents, system_instruction, inbound_audit = self._prepare_gemini_payload(
             request
         )
@@ -97,7 +134,7 @@ class ProxyService:
                 len(inbound_audit.entities_redacted),
             )
 
-        # 2. Execução Segura no Provedor Upstream (Gemini)
+        # 3. Execução Segura no Provedor Upstream (Gemini)
         gemini_response = await self._client.generate_content(
             contents=contents,
             model=request.model,
@@ -118,7 +155,7 @@ class ProxyService:
         candidate_tokens = usage.get("candidatesTokenCount")
         total_tokens = usage.get("totalTokenCount")
 
-        # 3. Outbound Sanitization Gate (Proteção de Saída)
+        # 4. Outbound Sanitization Gate (Proteção de Saída)
         outbound_audit: SecurityGateAudit | None = None
         final_text = raw_text
 
@@ -137,13 +174,14 @@ class ProxyService:
                     len(outbound_audit.entities_redacted),
                 )
 
-        # 4. Métricas e Auditoria LLMOps
+        # 5. Métricas e Auditoria LLMOps
         elapsed_ms = (time.perf_counter() - start_time) * 1000
         target_model = request.model or self._client._settings.GEMINI_MODEL
 
         security_metadata = ProxyAuditMetadata(
             inbound_audit=inbound_audit,
             outbound_audit=outbound_audit,
+            injection_audit=injection_verdict,
             model_used=target_model,
             latency_ms=round(elapsed_ms, 2),
             prompt_tokens=prompt_tokens,

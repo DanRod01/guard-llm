@@ -1,14 +1,19 @@
 import logging
 
 from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import JSONResponse
 
-from guardllm.schemas.proxy import ProxyChatRequest, ProxyChatResponse
+from guardllm.schemas.proxy import (
+    PromptInjectionBlockedResponse,
+    ProxyChatRequest,
+    ProxyChatResponse,
+)
 from guardllm.services.gemini import (
     GeminiAPIError,
     GeminiConfigError,
     GeminiTimeoutError,
 )
-from guardllm.services.proxy import proxy_service
+from guardllm.services.proxy import PromptInjectionError, proxy_service
 
 logger = logging.getLogger("guardllm.api.proxy")
 
@@ -19,17 +24,37 @@ router = APIRouter()
     "/chat",
     response_model=ProxyChatResponse,
     status_code=status.HTTP_200_OK,
+    responses={
+        status.HTTP_403_FORBIDDEN: {"model": PromptInjectionBlockedResponse},
+    },
     summary="Proxy Reversivo Defensivo para Chat LLM",
     description=(
-        "Higieniza o prompt de entrada (Inbound Gate), despacha para o modelo "
-        "e higieniza a resposta gerada (Outbound Gate), garantindo auditoria "
-        "e conformidade."
+        "Higieniza o prompt de entrada (Inbound Gate), bloqueia tentativas de "
+        "injeção (OWASP LLM01), despacha para o modelo e higieniza a resposta "
+        "gerada (Outbound Gate)."
     ),
 )
-async def proxy_chat(payload: ProxyChatRequest) -> ProxyChatResponse:
+async def proxy_chat(
+    payload: ProxyChatRequest,
+) -> ProxyChatResponse | JSONResponse:
     """Intermediário seguro de comunicação com a LLM."""
     try:
         return await proxy_service.process_chat(payload)
+    except PromptInjectionError as exc:
+        logger.warning(
+            "Prompt Injection bloqueado preventivamente! Score: %.2f",
+            exc.verdict.risk_score,
+        )
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content=PromptInjectionBlockedResponse(
+                detail=(
+                    "Prompt Injection ou tentativa de Jailbreak "
+                    "bloqueada preventivamente pelo GuardLLM."
+                ),
+                security=exc.verdict,
+            ).model_dump(mode="json"),
+        )
     except GeminiConfigError as exc:
         logger.error("Falha de configuração do provedor de LLM: %s", exc)
         raise HTTPException(
