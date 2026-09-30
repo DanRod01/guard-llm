@@ -2,6 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from guardllm.schemas.injection import InjectionVerdict
 from guardllm.schemas.sanitization import RedactedEntity
 
 
@@ -48,6 +49,10 @@ class ProxyChatRequest(BaseModel):
         default=True,
         description="Se verdadeiro, também inspeciona e mascara a resposta do modelo",
     )
+    block_on_injection: bool = Field(
+        default=True,
+        description="Se verdadeiro, bloqueia preventivamente tentativas de injeção",
+    )
 
     @model_validator(mode="after")
     def validate_content_presence(self) -> "ProxyChatRequest":
@@ -87,6 +92,9 @@ class ProxyAuditMetadata(BaseModel):
         default=None,
         description="Relatório de segurança da resposta da LLM",
     )
+    injection_audit: InjectionVerdict = Field(
+        description="Relatório de análise heurística de Prompt Injection (OWASP LLM01)",
+    )
     model_used: str = Field(description="Nome do modelo utilizado na inferência")
     latency_ms: float = Field(
         description="Latência total da requisição em milissegundos",
@@ -115,4 +123,18 @@ class ProxyChatResponse(BaseModel):
     )
     security: ProxyAuditMetadata = Field(
         description="Metadados completos de segurança e auditoria LLMOps",
+    )
+
+
+class PromptInjectionBlockedResponse(BaseModel):
+    """Payload defensivo retornado quando uma tentativa de injeção é bloqueada."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    detail: str = Field(
+        default="Prompt Injection bloqueado preventivamente pelo GuardLLM.",
+        description="Mensagem descritiva da violação de segurança",
+    )
+    security: InjectionVerdict = Field(
+        description="Veredito detalhado e pontuação de risco da detecção",
     )
