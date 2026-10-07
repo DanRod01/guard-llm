@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     # LLM Provider Configuration (Google Gemini)
     GEMINI_API_KEY: str = Field(default="", description="Google Gemini API Key")
     GEMINI_MODEL: str = Field(
-        default="gemini-1.5-flash",
+        default="gemini-flash-lite-latest",
         description="Default Google Gemini model name",
     )
     GEMINI_API_BASE_URL: str = Field(

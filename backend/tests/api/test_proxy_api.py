@@ -39,6 +39,7 @@ async def test_proxy_chat_endpoint_success(async_client: AsyncClient) -> None:
         )
 
         assert response.status_code == 200
+        assert "x-correlation-id" in response.headers
         data = response.json()
         assert data["output_text"] == "Resposta segura para o cliente."
         assert "security" in data
