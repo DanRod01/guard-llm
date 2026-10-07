@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from guardllm.api.v1.router import api_router
 from guardllm.core.config import settings
+from guardllm.core.middleware import CorrelationIdMiddleware
 from guardllm.services.gemini import gemini_client
 
 logging.basicConfig(
@@ -48,6 +49,9 @@ def create_application() -> FastAPI:
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],
     )
+
+    # Distributed tracing and SIEM correlation
+    application.add_middleware(CorrelationIdMiddleware)
 
     # API Version 1 Router
     application.include_router(api_router, prefix=settings.API_V1_STR)
