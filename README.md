@@ -72,7 +72,61 @@ guard-llm/
 
 ## 🔄 Fluxo de Segurança: O Padrão Dual-Gate (Inbound & Outbound)
 
-O GuardLLM implementa uma proteção bidirecional rigorosa:
+O GuardLLM implementa uma proteção bidirecional rigorosa com observabilidade distribuída e mitigação de ameaças na borda:
+
+```mermaid
+flowchart TD
+    subgraph Clients["Camada de Apresentação & Consumo"]
+        UI["Nuxt 3 SOC Dashboard (Tailwind CSS + TypeScript)"]
+        App["Aplicação Consumidora / Chatbot Client"]
+    end
+
+    subgraph Gateway["GuardLLM Defensive Reverse Proxy (FastAPI / ASGI)"]
+        direction TB
+        MW["CorrelationIdMiddleware (ContextVar X-Correlation-ID)"]
+        
+        subgraph InboundGate["1. Inbound Gate (Borda Defensiva)"]
+            Unic["Normalização Anti-Obfuscação (Zero-Width Stripper)"]
+            InjDet{"Detector de Prompt Injection (OWASP LLM01 - Saturated Risk)"}
+            SanIn["Sanitizer Engine (CPF Módulo 11 + Luhn + Cloud Secrets)"]
+        end
+
+        subgraph CoreDispatch["2. Orquestração & Resiliência"]
+            ProxySvc["ProxyService (Fail-Closed Orchestrator)"]
+            ClientPool["GeminiClient (httpx.AsyncClient Pooling)"]
+        end
+
+        subgraph OutboundGate["3. Outbound Gate & Telemetria"]
+            SanOut["Sanitizer Engine (Outbound PII Masking)"]
+            AuditLog["AuditLogger (CWE-532 Compliant)"]
+            RingBuf[("In-Memory Ring Buffer (collections.deque maxlen=100)")]
+        end
+    end
+
+    subgraph Upstream["Provedor LLM Upstream"]
+        Gemini["Google Gemini 1.5 Flash (API v1beta REST)"]
+    end
+
+    UI -->|GET /api/v1/audit/events| RingBuf
+    UI -->|POST /api/v1/proxy/chat| MW
+    App -->|POST /api/v1/proxy/chat| MW
+    MW --> InboundGate
+    InboundGate --> Unic --> InjDet
+    InjDet -->|Score >= 0.70| Block403["403 Forbidden (Zero Token Upstream)"]
+    InjDet -->|Score < 0.70| SanIn
+    SanIn --> ProxySvc
+    ProxySvc --> ClientPool
+    ClientPool -->|x-goog-api-key| Gemini
+    Gemini --> ClientPool
+    ClientPool --> OutboundGate
+    OutboundGate --> SanOut --> AuditLog
+    AuditLog --> RingBuf
+    AuditLog -.-> SIEM["SIEM / Log Collector (JSON Lines / OpenTelemetry)"]
+    OutboundGate -->|200 OK + Telemetria| App
+    Block403 --> AuditLog
+```
+
+### Detalhamento do Pipeline de Inspeção
 
 ```
 [ Aplicação Consumidora / Chatbot ]
