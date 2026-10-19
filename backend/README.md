@@ -10,7 +10,7 @@ O backend do **GuardLLM** é construído em Python 3.11+, FastAPI e Pydantic V2,
 - **Sanitização de PII (`guardllm.security.sanitization`)**: Validação matemática de CPFs (Módulo 11), cartões de crédito (Algoritmo de Luhn), segredos de nuvem (Gemini, OpenAI, AWS, GitHub) e resolução gananciosa de sobreposição de spans.
 - **Integração Upstream (`guardllm.services.gemini`)**: Cliente assíncrono para a API REST do Google Gemini com *Connection Pooling*, autenticação segura via cabeçalhos e política *Fail-Closed*.
 - **Orquestrador de Proxy (`guardllm.services.proxy`)**: Pipeline defensivo Dual-Gate (Inbound Injection Defense & PII Sanitization $\rightarrow$ Gemini Dispatch $\rightarrow$ Outbound Sanitization) com telemetria LLMOps completa (latência e tokens).
-- **API v1 (`guardllm.api.v1`)**: Endpoints versionados para health checks (`/health`), sanitização direta (`/security/sanitize`), inspeção de injeção (`/security/injection/detect`) e proxy de chat (`/proxy/chat`).
+- **API v1 (`guardllm.api.v1`)**: Endpoints versionados para health checks (`/health`), sanitização direta (`/security/sanitize`), inspeção de injeção (`/security/injection/detect`), proxy de chat (`/proxy/chat`) e telemetria para Dashboard (`/audit/events` e `/audit/stats`).
 
 ## Verificações de Qualidade
 

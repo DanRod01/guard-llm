@@ -120,3 +120,55 @@ class AuditEvent(BaseModel):
     message: str = Field(
         description="Mensagem resumida do evento para analistas de SOC",
     )
+
+
+class AuditStats(BaseModel):
+    """Métricas consolidadas de segurança, volume e latência para o Dashboard."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    total_events: int = Field(
+        default=0,
+        description="Total de eventos registrados no buffer",
+    )
+    transactions_success: int = Field(
+        default=0,
+        description="Total de transações bem-sucedidas (200)",
+    )
+    injections_blocked: int = Field(
+        default=0,
+        description="Total de ataques de injeção bloqueados (403)",
+    )
+    pii_redacted: int = Field(
+        default=0,
+        description="Total de requisições com PII mascarada",
+    )
+    upstream_errors: int = Field(
+        default=0,
+        description="Total de falhas de comunicação com upstream",
+    )
+    total_tokens: int = Field(
+        default=0,
+        description="Consumo acumulado de tokens",
+    )
+    average_latency_ms: float = Field(
+        default=0.0,
+        description="Latência média das transações em ms",
+    )
+
+
+class AuditEventsListResponse(BaseModel):
+    """Contrato de resposta para listagem de eventos recentes de auditoria."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    total: int = Field(
+        ...,
+        description="Total de eventos contidos na listagem",
+    )
+    events: list[AuditEvent] = Field(
+        ...,
+        description="Lista ordenada dos eventos (mais recentes primeiro)",
+    )
+
+
