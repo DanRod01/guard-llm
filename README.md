@@ -58,7 +58,14 @@ guard-llm/
 │       ├── core/                   # Testes do middleware de Correlation ID e sanitização de headers
 │       ├── security/               # Testes dos algoritmos matemáticos e mitigação de injeção
 │       └── services/               # Testes unitários do cliente Gemini, proxy e audit logger
-└── frontend/                       # [Fase 6] Dashboard de Monitoramento em Nuxt 3 + TypeScript
+├── frontend/                       # Dashboard de Monitoramento SOC em Nuxt 3 + Tailwind CSS
+│   ├── components/                 # Componentes de UI (Navbar, MetricsCards, SecurityPlayground, AuditFeed, EventModal)
+│   ├── composables/                # Cliente de API reativo (useGuardApi) com rastreamento distribuído
+│   ├── types/                      # Contratos TypeScript espelhando schemas de auditoria e proxy
+│   ├── nuxt.config.ts              # Configuração do Nuxt 3 com Vite e Tailwind CSS
+│   ├── tailwind.config.ts          # Design System corporativo Dark Mode
+│   └── app.vue                     # Layout principal orquestrando o painel de segurança
+└── .gitignore                      # Regras determinísticas de exclusão (Python, Node, Nuxt)
 ```
 
 ---
@@ -149,55 +156,53 @@ O GuardLLM implementa uma proteção bidirecional rigorosa:
 
 | Componente | Tecnologia | Decisão Técnica |
 | :--- | :--- | :--- |
-| **Linguagem & Runtime** | Python 3.11+ | Suporte nativo a `StrEnum`, `datetime.UTC` e concorrência assíncrona moderna |
-| **Framework Web** | FastAPI | Framework ASGI assíncrono de alto rendimento para I/O-bound de LLMs |
+| **Linguagem & Runtime (Backend)** | Python 3.11+ | Suporte nativo a `StrEnum`, `datetime.UTC` e concorrência assíncrona moderna |
+| **Framework Web (Backend)** | FastAPI | Framework ASGI assíncrono de alto rendimento para I/O-bound de LLMs |
 | **Validação de Schemas** | Pydantic V2 | Motor em Rust (`pydantic-core`) com `extra="forbid"` contra *parameter tampering* |
-| **Gerenciador de Pacotes** | `uv` (Astral) | Resolução de dependências ultrarrápida e integridade determinística de *supply chain* |
-| **Qualidade & Linters** | Ruff & Mypy Strict | Análise estática instantânea e tipagem estrita com 100% de cobertura (46 arquivos) |
+| **Gerenciador de Pacotes Python** | `uv` (Astral) | Resolução de dependências ultrarrápida e integridade determinística de *supply chain* |
+| **Qualidade & Linters** | Ruff & Mypy Strict | Análise estática instantânea e tipagem estrita com 100% de cobertura (48 arquivos) |
 | **Cliente HTTP** | `httpx` | Conexões assíncronas com pooling persistente e controle granular de timeouts |
-| **Suíte de Testes** | Pytest-Asyncio | Testes assíncronos em memória via `ASGITransport` e mocks determinísticos (0.27s) |
+| **Suíte de Testes** | Pytest-Asyncio | Testes assíncronos em memória via `ASGITransport` e mocks determinísticos (0.26s) |
+| **Framework Web (Frontend)** | Nuxt 3 (Vue 3 + Vite) | Arquitetura reativa, auto-imports limpos e renderização rápida |
+| **Estilização & Design System** | Tailwind CSS | Interface corporativa Dark Mode minimalista inspirada no Linear/Vercel |
+| **Ícones Vetoriais** | `@lucide/vue` | Ícones vetoriais modernos e leves para operações de segurança |
 
 ---
 
 ## ⚡ Começando (Quick Start)
 
 ### Pré-requisitos
-- Python 3.11 ou superior
-- [uv](https://astral.sh/uv) instalado no sistema
+- Python 3.11 ou superior e [uv](https://astral.sh/uv)
+- Node.js 18+ e npm
 
 ### 1. Clonar o repositório
 ```bash
 git clone https://github.com/DanRod01/guard-llm.git
-cd guard-llm/backend
+cd guard-llm
 ```
 
-### 2. Instalar dependências e sincronizar ambiente
+### 2. Configurar e Executar o Backend
 ```bash
+cd backend
 uv sync --extra dev
-```
-
-### 3. Configurar variáveis de ambiente
-```bash
 cp .env.example .env
 # Defina sua GEMINI_API_KEY no arquivo .env
-```
-
-### 4. Executar verificações de qualidade
-```bash
-uv run ruff check .
-uv run mypy src tests
 uv run pytest -v
-```
-
-### 5. Subir o servidor de desenvolvimento
-```bash
 uv run uvicorn guardllm.main:app --reload --port 8000
 ```
-- Documentação Interativa Swagger: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) (desativada automaticamente em produção)
+- Documentação Swagger da API: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 - Probe de Saúde: `GET http://127.0.0.1:8000/api/v1/health`
-- Endpoint de Sanitização Direta: `POST http://127.0.0.1:8000/api/v1/security/sanitize`
-- Endpoint de Inspeção de Injeção: `POST http://127.0.0.1:8000/api/v1/security/injection/detect`
-- **Endpoint de Proxy Defensivo**: `POST http://127.0.0.1:8000/api/v1/proxy/chat`
+- Proxy Defensivo: `POST http://127.0.0.1:8000/api/v1/proxy/chat`
+- Feed de Auditoria: `GET http://127.0.0.1:8000/api/v1/audit/events`
+
+### 3. Configurar e Executar o Dashboard (Frontend)
+Em um novo terminal:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Acesse o Dashboard de Operações de Segurança em **[http://localhost:3000](http://localhost:3000)**.
 
 ---
 
