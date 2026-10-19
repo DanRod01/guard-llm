@@ -1,5 +1,7 @@
 import json
 import logging
+from collections import deque
+from threading import Lock
 from typing import Any
 
 from guardllm.core.middleware import get_correlation_id
@@ -7,6 +9,7 @@ from guardllm.schemas.audit import (
     AuditEvent,
     AuditEventType,
     AuditSeverity,
+    AuditStats,
     SecurityAuditDetails,
     TokenUsage,
 )
@@ -21,10 +24,19 @@ class AuditLogger:
 
     Garante conformidade com LGPD/GDPR e mitiga CWE-532 (proibição absoluta
     de gravação de credenciais ou dados sensíveis em texto claro nos logs).
+    Mantém também um buffer circular (ring buffer) de telemetria em memória
+    para consulta pelo Dashboard de Monitoramento da Fase 6.
     """
 
+    def __init__(self, max_events: int = 100) -> None:
+        self._events: deque[AuditEvent] = deque(maxlen=max_events)
+        self._lock = Lock()
+
     def emit_event(self, event: AuditEvent) -> None:
-        """Serializa o evento em JSON estrito e o emite via logging estruturado."""
+        """Serializa o evento em JSON estrito e o armazena no buffer de telemetria."""
+        with self._lock:
+            self._events.appendleft(event)
+
         payload: dict[str, Any] = event.model_dump(mode="json")
         json_log = json.dumps(payload, ensure_ascii=False)
 
@@ -34,6 +46,61 @@ class AuditLogger:
             logger.warning("%s", json_log)
         else:
             logger.info("%s", json_log)
+
+    def get_recent_events(self, limit: int = 50) -> list[AuditEvent]:
+        """Retorna os eventos mais recentes do buffer circular (mais novos primeiro)."""
+        with self._lock:
+            clamped_limit = max(1, min(limit, len(self._events)))
+            return list(self._events)[:clamped_limit]
+
+    def get_stats(self) -> AuditStats:
+        """Calcula métricas agregadas dos eventos contidos no buffer circular."""
+        with self._lock:
+            events = list(self._events)
+
+        total_events = len(events)
+        if total_events == 0:
+            return AuditStats()
+
+        transactions_success = 0
+        injections_blocked = 0
+        pii_redacted = 0
+        upstream_errors = 0
+        total_tokens = 0
+        latencies: list[float] = []
+
+        for e in events:
+            if e.event_type == AuditEventType.TRANSACTION_SUCCESS:
+                transactions_success += 1
+            elif e.event_type == AuditEventType.PROMPT_INJECTION_BLOCKED:
+                injections_blocked += 1
+            elif e.event_type == AuditEventType.PII_REDACTED:
+                pii_redacted += 1
+            elif e.event_type == AuditEventType.UPSTREAM_ERROR:
+                upstream_errors += 1
+
+            if e.token_usage and e.token_usage.total_tokens is not None:
+                total_tokens += e.token_usage.total_tokens
+
+            if e.latency_ms is not None:
+                latencies.append(e.latency_ms)
+
+        avg_latency = sum(latencies) / len(latencies) if latencies else 0.0
+
+        return AuditStats(
+            total_events=total_events,
+            transactions_success=transactions_success,
+            injections_blocked=injections_blocked,
+            pii_redacted=pii_redacted,
+            upstream_errors=upstream_errors,
+            total_tokens=total_tokens,
+            average_latency_ms=round(avg_latency, 2),
+        )
+
+    def clear(self) -> None:
+        """Limpa o buffer em memória (útil para suíte de testes)."""
+        with self._lock:
+            self._events.clear()
 
     def log_injection_blocked(
         self,

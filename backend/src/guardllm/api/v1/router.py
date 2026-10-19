@@ -1,6 +1,12 @@
 from fastapi import APIRouter
 
-from guardllm.api.v1.endpoints import health, injection, proxy, sanitization
+from guardllm.api.v1.endpoints import (
+    audit,
+    health,
+    injection,
+    proxy,
+    sanitization,
+)
 
 api_router = APIRouter()
 api_router.include_router(health.router, tags=["Health"])
@@ -19,3 +25,9 @@ api_router.include_router(
     prefix="/proxy",
     tags=["LLM Proxy"],
 )
+api_router.include_router(
+    audit.router,
+    prefix="/audit",
+    tags=["Audit & Telemetry"],
+)
+

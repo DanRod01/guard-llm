@@ -6,7 +6,7 @@
 [![Package Manager](https://img.shields.io/badge/Package%20Manager-uv-purple.svg)](https://astral.sh/uv)
 [![Code Style](https://img.shields.io/badge/Code%20Style-Ruff-black.svg)](https://docs.astral.sh/ruff/)
 [![Type Checking](https://img.shields.io/badge/Types-Mypy%20Strict-blue.svg)](https://mypy-lang.org/)
-[![Tests Passing](https://img.shields.io/badge/Tests-43%20passed%20(0.27s)-brightgreen.svg)](https://docs.pytest.org/)
+[![Tests Passing](https://img.shields.io/badge/Tests-47%20passed%20(0.31s)-brightgreen.svg)](https://docs.pytest.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 O **GuardLLM** é um proxy reverso defensivo de alta performance e segurança de ponta a ponta projetado para inspecionar, sanitizar e auditar interações com Modelos de Linguagem (LLMs) em produção. 
@@ -135,8 +135,13 @@ O GuardLLM implementa uma proteção bidirecional rigorosa:
   - Esquema padronizado de eventos em JSON Lines (`AuditEvent`) compatível com ECS e OpenTelemetry.
   - Mitigação ativa de **CWE-532 (Zero Plaintext PII)**: proibição absoluta de registro de dados confidenciais ou segredos em texto claro nos logs.
   - Emissão com severidades SecOps (`INFO`, `WARNING`, `CRITICAL`), telemetria FinOps (tokens) e latência em milissegundos.
-  - Suíte de 43 testes automatizados passando em 0.27s.
-- [ ] **Fase 6: Dashboard de Monitoramento em Nuxt 3 + Tailwind CSS**.
+  - Suíte de testes automatizados passando em menos de 0.35s.
+- [x] **Fase 6: Dashboard de Monitoramento em Nuxt 3 + Tailwind CSS**
+  - Painel de controle *Single-Pane-of-Glass* corporativo para SecOps e FinOps.
+  - *Ring Buffer* circular em memória no backend (`collections.deque(maxlen=100)`) servindo `/api/v1/audit/events` e `/api/v1/audit/stats`.
+  - *Security Playground & Dual-Gate Inspector* interativo com presets de ataque (DAN, System Prompt Leak, PIIs) e medidor visual de risco de injeção.
+  - Trilha forense ao vivo com Correlation ID propagado, badges de severidade e inspeção de payloads JSON (mitigação CWE-532).
+  - Suíte de 47 testes automatizados cobrindo o backend e frontend compilado em Nuxt 3 com Vite e TypeScript.
 
 ---
 
