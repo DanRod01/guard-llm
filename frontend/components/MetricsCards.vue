@@ -2,7 +2,6 @@
 import {
   Activity,
   ShieldAlert,
-  ShieldCheck,
   Lock,
   Cpu,
 } from '@lucide/vue'

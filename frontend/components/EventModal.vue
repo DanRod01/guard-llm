@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { X, Copy, Check, ShieldCheck, Terminal } from '@lucide/vue'
 import type { AuditEvent } from '~/types/audit'
 
@@ -19,11 +19,28 @@ const copyJson = () => {
   copied.value = true
   setTimeout(() => (copied.value = false), 2000)
 }
+
+const handleKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Escape' && props.event) {
+    emit('close')
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown)
+})
 </script>
 
 <template>
   <div
     v-if="event"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Inspeção Forense SIEM"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
     @click.self="emit('close')"
   >

@@ -190,7 +190,7 @@ class AuditLogger:
             message=(
                 f"Transação LLM concluída. Latência: {sec.latency_ms:.1f}ms | "
                 f"Tokens: {sec.total_tokens} | "
-                f"PIIs: {len(inbound_entities)}"
+                f"PIIs: {len(inbound_entities) + len(outbound_entities)}"
             ),
         )
         self.emit_event(event)

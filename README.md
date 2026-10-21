@@ -6,7 +6,7 @@
 [![Package Manager](https://img.shields.io/badge/Package%20Manager-uv-purple.svg)](https://astral.sh/uv)
 [![Code Style](https://img.shields.io/badge/Code%20Style-Ruff-black.svg)](https://docs.astral.sh/ruff/)
 [![Type Checking](https://img.shields.io/badge/Types-Mypy%20Strict-blue.svg)](https://mypy-lang.org/)
-[![Tests Passing](https://img.shields.io/badge/Tests-47%20passed%20(0.31s)-brightgreen.svg)](https://docs.pytest.org/)
+[![Tests Passing](https://img.shields.io/badge/Tests-56%20passed%20(0.36s)-brightgreen.svg)](https://docs.pytest.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 O **GuardLLM** é um proxy reverso defensivo de alta performance e segurança de ponta a ponta projetado para inspecionar, sanitizar e auditar interações com Modelos de Linguagem (LLMs) em produção. 
@@ -58,14 +58,75 @@ guard-llm/
 │       ├── core/                   # Testes do middleware de Correlation ID e sanitização de headers
 │       ├── security/               # Testes dos algoritmos matemáticos e mitigação de injeção
 │       └── services/               # Testes unitários do cliente Gemini, proxy e audit logger
-└── frontend/                       # [Fase 6] Dashboard de Monitoramento em Nuxt 3 + TypeScript
+├── frontend/                       # Dashboard de Monitoramento SOC em Nuxt 3 + Tailwind CSS
+│   ├── components/                 # Componentes de UI (Navbar, MetricsCards, SecurityPlayground, AuditFeed, EventModal)
+│   ├── composables/                # Cliente de API reativo (useGuardApi) com rastreamento distribuído
+│   ├── types/                      # Contratos TypeScript espelhando schemas de auditoria e proxy
+│   ├── nuxt.config.ts              # Configuração do Nuxt 3 com Vite e Tailwind CSS
+│   ├── tailwind.config.ts          # Design System corporativo Dark Mode
+│   └── app.vue                     # Layout principal orquestrando o painel de segurança
+└── .gitignore                      # Regras determinísticas de exclusão (Python, Node, Nuxt)
 ```
 
 ---
 
 ## 🔄 Fluxo de Segurança: O Padrão Dual-Gate (Inbound & Outbound)
 
-O GuardLLM implementa uma proteção bidirecional rigorosa:
+O GuardLLM implementa uma proteção bidirecional rigorosa com observabilidade distribuída e mitigação de ameaças na borda:
+
+```mermaid
+flowchart TD
+    subgraph Clients["Camada de Apresentação & Consumo"]
+        UI["Nuxt 3 SOC Dashboard (Tailwind CSS + TypeScript)"]
+        App["Aplicação Consumidora / Chatbot Client"]
+    end
+
+    subgraph Gateway["GuardLLM Defensive Reverse Proxy (FastAPI / ASGI)"]
+        direction TB
+        MW["CorrelationIdMiddleware (ContextVar X-Correlation-ID)"]
+        
+        subgraph InboundGate["1. Inbound Gate (Borda Defensiva)"]
+            Unic["Normalização Anti-Obfuscação (Zero-Width Stripper)"]
+            InjDet{"Detector de Prompt Injection (OWASP LLM01 - Saturated Risk)"}
+            SanIn["Sanitizer Engine (CPF Módulo 11 + Luhn + Cloud Secrets)"]
+        end
+
+        subgraph CoreDispatch["2. Orquestração & Resiliência"]
+            ProxySvc["ProxyService (Fail-Closed Orchestrator)"]
+            ClientPool["GeminiClient (httpx.AsyncClient Pooling)"]
+        end
+
+        subgraph OutboundGate["3. Outbound Gate & Telemetria"]
+            SanOut["Sanitizer Engine (Outbound PII Masking)"]
+            AuditLog["AuditLogger (CWE-532 Compliant)"]
+            RingBuf[("In-Memory Ring Buffer (collections.deque maxlen=100)")]
+        end
+    end
+
+    subgraph Upstream["Provedor LLM Upstream"]
+        Gemini["Google Gemini 1.5 Flash (API v1beta REST)"]
+    end
+
+    UI -->|GET /api/v1/audit/events| RingBuf
+    UI -->|POST /api/v1/proxy/chat| MW
+    App -->|POST /api/v1/proxy/chat| MW
+    MW --> InboundGate
+    InboundGate --> Unic --> InjDet
+    InjDet -->|Score >= 0.70| Block403["403 Forbidden (Zero Token Upstream)"]
+    InjDet -->|Score < 0.70| SanIn
+    SanIn --> ProxySvc
+    ProxySvc --> ClientPool
+    ClientPool -->|x-goog-api-key| Gemini
+    Gemini --> ClientPool
+    ClientPool --> OutboundGate
+    OutboundGate --> SanOut --> AuditLog
+    AuditLog --> RingBuf
+    AuditLog -.-> SIEM["SIEM / Log Collector (JSON Lines / OpenTelemetry)"]
+    OutboundGate -->|200 OK + Telemetria| App
+    Block403 --> AuditLog
+```
+
+### Detalhamento do Pipeline de Inspeção
 
 ```
 [ Aplicação Consumidora / Chatbot ]
@@ -115,9 +176,9 @@ O GuardLLM implementa uma proteção bidirecional rigorosa:
   - Configuração *fail-fast* via `pydantic-settings` e gerenciamento de *lifespan*.
   - Probes de saúde com `StrEnum` e timestamps conscientes em UTC (mitigação CWE-200).
 - [x] **Fase 2: Motor de Sanitização Bidirecional de PII (OWASP LLM06)**
-  - Detecção e mascaramento de CPFs com validação matemática do **Módulo 11** da Receita Federal (zero falsos positivos em IDs numéricos).
+  - Detecção e mascaramento de **CPFs** e **CNPJs** com validação matemática do **Módulo 11** da Receita Federal (zero falsos positivos em IDs numéricos).
   - Mascaramento de cartões de crédito via **Algoritmo de Luhn** (Módulo 10 - ISO/IEC 7812).
-  - Assinaturas de segredos e chaves de nuvem (Google Gemini, OpenAI, AWS IAM, GitHub Tokens).
+  - Assinaturas de **JSON Web Tokens (JWT - RFC 7519)** e segredos de nuvem (Google Gemini, OpenAI, AWS IAM, GitHub Tokens).
   - Algoritmo de resolução de sobreposição de spans com ordenação gananciosa e reconstrução linear $O(N)$.
 - [x] **Fase 3: Proxy Reversivo Assíncrono com Dual-Gate & Integração Gemini**
   - Orquestrador de proxy com proteção de entrada (*Inbound Gate*) e saída (*Outbound Gate*).
@@ -149,55 +210,53 @@ O GuardLLM implementa uma proteção bidirecional rigorosa:
 
 | Componente | Tecnologia | Decisão Técnica |
 | :--- | :--- | :--- |
-| **Linguagem & Runtime** | Python 3.11+ | Suporte nativo a `StrEnum`, `datetime.UTC` e concorrência assíncrona moderna |
-| **Framework Web** | FastAPI | Framework ASGI assíncrono de alto rendimento para I/O-bound de LLMs |
+| **Linguagem & Runtime (Backend)** | Python 3.11+ | Suporte nativo a `StrEnum`, `datetime.UTC` e concorrência assíncrona moderna |
+| **Framework Web (Backend)** | FastAPI | Framework ASGI assíncrono de alto rendimento para I/O-bound de LLMs |
 | **Validação de Schemas** | Pydantic V2 | Motor em Rust (`pydantic-core`) com `extra="forbid"` contra *parameter tampering* |
-| **Gerenciador de Pacotes** | `uv` (Astral) | Resolução de dependências ultrarrápida e integridade determinística de *supply chain* |
-| **Qualidade & Linters** | Ruff & Mypy Strict | Análise estática instantânea e tipagem estrita com 100% de cobertura (46 arquivos) |
+| **Gerenciador de Pacotes Python** | `uv` (Astral) | Resolução de dependências ultrarrápida e integridade determinística de *supply chain* |
+| **Qualidade & Linters** | Ruff & Mypy Strict | Análise estática instantânea e tipagem estrita com 100% de cobertura (48 arquivos) |
 | **Cliente HTTP** | `httpx` | Conexões assíncronas com pooling persistente e controle granular de timeouts |
-| **Suíte de Testes** | Pytest-Asyncio | Testes assíncronos em memória via `ASGITransport` e mocks determinísticos (0.27s) |
+| **Suíte de Testes** | Pytest-Asyncio | Testes assíncronos em memória via `ASGITransport` e mocks determinísticos (0.26s) |
+| **Framework Web (Frontend)** | Nuxt 3 (Vue 3 + Vite) | Arquitetura reativa, auto-imports limpos e renderização rápida |
+| **Estilização & Design System** | Tailwind CSS | Interface corporativa Dark Mode minimalista inspirada no Linear/Vercel |
+| **Ícones Vetoriais** | `@lucide/vue` | Ícones vetoriais modernos e leves para operações de segurança |
 
 ---
 
 ## ⚡ Começando (Quick Start)
 
 ### Pré-requisitos
-- Python 3.11 ou superior
-- [uv](https://astral.sh/uv) instalado no sistema
+- Python 3.11 ou superior e [uv](https://astral.sh/uv)
+- Node.js 18+ e npm
 
 ### 1. Clonar o repositório
 ```bash
 git clone https://github.com/DanRod01/guard-llm.git
-cd guard-llm/backend
+cd guard-llm
 ```
 
-### 2. Instalar dependências e sincronizar ambiente
+### 2. Configurar e Executar o Backend
 ```bash
+cd backend
 uv sync --extra dev
-```
-
-### 3. Configurar variáveis de ambiente
-```bash
 cp .env.example .env
 # Defina sua GEMINI_API_KEY no arquivo .env
-```
-
-### 4. Executar verificações de qualidade
-```bash
-uv run ruff check .
-uv run mypy src tests
 uv run pytest -v
-```
-
-### 5. Subir o servidor de desenvolvimento
-```bash
 uv run uvicorn guardllm.main:app --reload --port 8000
 ```
-- Documentação Interativa Swagger: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) (desativada automaticamente em produção)
+- Documentação Swagger da API: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 - Probe de Saúde: `GET http://127.0.0.1:8000/api/v1/health`
-- Endpoint de Sanitização Direta: `POST http://127.0.0.1:8000/api/v1/security/sanitize`
-- Endpoint de Inspeção de Injeção: `POST http://127.0.0.1:8000/api/v1/security/injection/detect`
-- **Endpoint de Proxy Defensivo**: `POST http://127.0.0.1:8000/api/v1/proxy/chat`
+- Proxy Defensivo: `POST http://127.0.0.1:8000/api/v1/proxy/chat`
+- Feed de Auditoria: `GET http://127.0.0.1:8000/api/v1/audit/events`
+
+### 3. Configurar e Executar o Dashboard (Frontend)
+Em um novo terminal:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Acesse o Dashboard de Operações de Segurança em **[http://localhost:3000](http://localhost:3000)**.
 
 ---
 
@@ -233,9 +292,11 @@ Quando uma transação ou ataque é interceptado, o GuardLLM emite um JSON estru
 
 ## 🔒 Postura de Segurança (AppSec Highlights)
 
-- **Mitigação OWASP LLM01**: Bloqueio ativo de tentativas de sobrescrita de regras, personas sem filtros e manipulação de delimitadores antes de atingir o modelo.
-- **Conformidade CWE-532**: Logs de auditoria nunca armazenam números de cartão, CPFs ou chaves de API em texto puro. Apenas metadados higienizados trafegam para o SIEM.
-- **Rastreabilidade com Correlation ID**: Cabeçalho `X-Correlation-ID` propagado em todas as requisições e respostas para correlacionar eventos no Datadog/Splunk.
+- **Mitigação OWASP LLM01 & LLM04**: Bloqueio ativo de tentativas de sobrescrita de regras, personas sem filtros e manipulação de delimitadores, além de limites estritos de payload (`max_length`) contra *Model Denial of Service*.
+- **Resistência a ReDoS (CWE-1333)**: Expressões regulares de inspeção com quantificadores de janela limitada (`.{0,100}?`), garantindo execução em tempo linear $O(N)$ imune a *backtracking* catastrófico.
+- **Pure ASGI Middleware & Hardening HTTP**: Middleware implementado diretamente sobre o protocolo ASGI (zero cópia de stream em memória) com injeção automática de `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy` e `Cache-Control: no-store`.
+- **Conformidade CWE-532**: Logs de auditoria nunca armazenam números de cartão, CPFs, CNPJs, JWTs ou chaves de API em texto puro. Apenas metadados higienizados trafegam para o SIEM.
+- **Rastreabilidade com Correlation ID**: Cabeçalho `X-Correlation-ID` propagado e sanitizado contra *Header Injection* em todas as requisições e respostas.
 - **Fail-Closed por Padrão**: Falhas em credenciais ou componentes de segurança interrompem a chamada antes de qualquer exposição de dados.
 - **Proteção Anti-Obfuscação**: Stripping automático de caracteres invisíveis (Zero-Width Unicode) projetados para contornar analisadores estáticos.
 - **Connection Pooling Persistente**: Reutilização de conexões TCP/TLS com o provedor de LLM, economizando centenas de milissegundos por requisição.

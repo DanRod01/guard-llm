@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import {
   ShieldCheck,
-  ShieldAlert,
   BookOpen,
   RefreshCw,
-  Activity,
 } from '@lucide/vue'
 
 const props = defineProps<{

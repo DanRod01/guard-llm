@@ -42,3 +42,42 @@ async def test_middleware_sanitizes_invalid_incoming_header(
     cid = response.headers.get("x-correlation-id")
     assert cid != malicious_header
     assert len(cid) == 32  # UUID hex length
+
+
+@pytest.mark.asyncio
+async def test_middleware_injects_owasp_security_headers(
+    async_client: AsyncClient,
+) -> None:
+    response = await async_client.get("/api/v1/health")
+
+    assert response.status_code == 200
+    assert response.headers.get("x-content-type-options") == "nosniff"
+    assert response.headers.get("x-frame-options") == "DENY"
+    assert (
+        response.headers.get("referrer-policy")
+        == "strict-origin-when-cross-origin"
+    )
+    assert response.headers.get("cache-control") == "no-store"
+
+
+@pytest.mark.asyncio
+async def test_cors_exposes_correlation_id_and_allows_delete(
+    async_client: AsyncClient,
+) -> None:
+    preflight = await async_client.options(
+        "/api/v1/audit/events",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "DELETE",
+        },
+    )
+    assert preflight.status_code == 200
+    allow_methods = preflight.headers.get("access-control-allow-methods", "")
+    assert "DELETE" in allow_methods
+
+    actual = await async_client.get(
+        "/api/v1/health",
+        headers={"Origin": "http://localhost:3000"},
+    )
+    expose_headers = actual.headers.get("access-control-expose-headers", "")
+    assert "x-correlation-id" in expose_headers.lower()

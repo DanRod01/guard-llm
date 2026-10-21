@@ -22,6 +22,18 @@ export interface ChatExecutionResult {
   statusCode: number
 }
 
+interface OfetchErrorShape {
+  message?: string
+  response?: {
+    status?: number
+    headers?: Headers
+    _data?: {
+      detail?: string
+      security?: PromptInjectionBlockedResponse['security']
+    }
+  }
+}
+
 export const useGuardApi = () => {
   const config = useRuntimeConfig()
   const baseUrl = config.public.apiBaseUrl
@@ -83,16 +95,20 @@ export const useGuardApi = () => {
         correlationId,
         statusCode: res.status,
       }
-    } catch (err: any) {
-      const status = err.response?.status || 500
-      const correlationId = err.response?.headers?.get('x-correlation-id') || ''
-      const errorData = err.response?._data
+    } catch (err: unknown) {
+      const fetchErr = err as OfetchErrorShape
+      const status = fetchErr.response?.status || 500
+      const correlationId = fetchErr.response?.headers?.get('x-correlation-id') || ''
+      const errorData = fetchErr.response?._data
 
       if (status === 403 && errorData?.security) {
         return {
           success: false,
           blocked: true,
-          blockedData: errorData as PromptInjectionBlockedResponse,
+          blockedData: {
+            detail: errorData.detail || 'Prompt Injection bloqueado preventivamente pelo GuardLLM.',
+            security: errorData.security,
+          },
           correlationId,
           statusCode: 403,
         }
@@ -101,7 +117,7 @@ export const useGuardApi = () => {
       return {
         success: false,
         blocked: false,
-        error: errorData?.detail || err.message || 'Erro desconhecido',
+        error: errorData?.detail || fetchErr.message || 'Erro desconhecido',
         correlationId,
         statusCode: status,
       }

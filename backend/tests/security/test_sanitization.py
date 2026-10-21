@@ -103,3 +103,46 @@ def test_mixed_sensitive_payload_preserves_context() -> None:
 
     assert result.sanitized_text == expected
     assert len(result.entities_detected) == 3
+
+
+def test_sanitize_valid_cnpj_with_modulo_11() -> None:
+    engine = SanitizerEngine()
+    valid_cnpj = "11.222.333/0001-81"
+    text = f"Contrato corporativo firmado com o CNPJ {valid_cnpj}."
+
+    result = engine.sanitize(text)
+
+    assert result.contains_pii
+    assert valid_cnpj not in result.sanitized_text
+    assert "[REDACTED_CNPJ]" in result.sanitized_text
+    assert len(result.entities_detected) == 1
+    assert result.entities_detected[0].entity_type == PIIType.CNPJ
+
+
+def test_ignore_invalid_cnpj_false_positive() -> None:
+    engine = SanitizerEngine()
+    invalid_cnpj = "11.222.333/0001-99"
+    repeated_cnpj = "00.000.000/0000-00"
+    text = f"Códigos inválidos: {invalid_cnpj} e {repeated_cnpj}."
+
+    result = engine.sanitize(text)
+
+    assert not result.contains_pii
+    assert result.sanitized_text == text
+
+
+def test_sanitize_jwt_bearer_token() -> None:
+    engine = SanitizerEngine()
+    jwt_token = (
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+        "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkRhbmllbCJ9."
+        "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+    )
+    text = f"Header Authorization: Bearer {jwt_token}"
+
+    result = engine.sanitize(text)
+
+    assert result.contains_pii
+    assert jwt_token not in result.sanitized_text
+    assert "Bearer [REDACTED_JWT]" in result.sanitized_text
+    assert result.entities_detected[0].entity_type == PIIType.JWT_TOKEN

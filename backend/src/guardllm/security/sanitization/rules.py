@@ -10,9 +10,19 @@ CPF_PATTERN: re.Pattern[str] = re.compile(
     r"\b(?:\d{3}\.\d{3}\.\d{3}-\d{2}|\d{11})\b"
 )
 
+# CNPJ com máscara (00.000.000/0000-00) ou apenas 14 dígitos numéricos
+CNPJ_PATTERN: re.Pattern[str] = re.compile(
+    r"\b(?:\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}|\d{14})\b"
+)
+
 # Possíveis números de cartão de crédito (13 a 19 dígitos)
 CREDIT_CARD_PATTERN: re.Pattern[str] = re.compile(
     r"\b(?:\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{1,7})\b"
+)
+
+# JSON Web Tokens (RFC 7519) codificados em Base64URL (Header.Payload.Signature)
+JWT_PATTERN: re.Pattern[str] = re.compile(
+    r"\beyJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\b"
 )
 
 # Assinaturas conhecidas de chaves de API e segredos de nuvem
@@ -50,6 +60,31 @@ def validate_cpf_checksum(raw_cpf: str) -> bool:
     remainder2 = (sum2 * 10) % 11
     expected_d2 = 0 if remainder2 == 10 else remainder2
     return digits[10] == expected_d2
+
+
+def validate_cnpj_checksum(raw_cnpj: str) -> bool:
+    """Valida se uma sequência obedece ao algoritmo oficial de Módulo 11 do CNPJ.
+
+    Utiliza os pesos posicionais de 2 a 9 da Receita Federal para 14 dígitos.
+    """
+    digits = [int(c) for c in raw_cnpj if c.isdigit()]
+    if len(digits) != 14:
+        return False
+
+    # Descarta sequências repetidas (ex: 00.000.000/0000-00)
+    if len(set(digits)) == 1:
+        return False
+
+    weights1 = (5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2)
+    remainder1 = sum(d * w for d, w in zip(digits[:12], weights1, strict=True)) % 11
+    expected_d1 = 0 if remainder1 < 2 else 11 - remainder1
+    if digits[12] != expected_d1:
+        return False
+
+    weights2 = (6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2)
+    remainder2 = sum(d * w for d, w in zip(digits[:13], weights2, strict=True)) % 11
+    expected_d2 = 0 if remainder2 < 2 else 11 - remainder2
+    return digits[13] == expected_d2
 
 
 def validate_luhn_checksum(raw_card: str) -> bool:
