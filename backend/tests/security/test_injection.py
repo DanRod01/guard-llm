@@ -1,3 +1,5 @@
+import time
+
 from guardllm.schemas.injection import InjectionCategory
 from guardllm.security.injection.detector import InjectionDetector
 
@@ -120,3 +122,17 @@ def test_multi_category_attack_accumulates_risk_score() -> None:
     # Fórmula saturada: 1 - (1-0.85)*(1-0.90)*(1-0.95) -> ~0.999
     assert verdict.risk_score >= 0.95
     assert len(verdict.categories) >= 2
+
+
+def test_redos_linear_time_resistance_cwe_1333() -> None:
+    detector = InjectionDetector()
+    # Payload adversarial com centenas de gatilhos parciais sem fechamento
+    # que causaria backtracking quadrático O(N^2) em regexes com .*? ilimitado
+    adversarial_input = ("ignore " * 400) + ("all " * 400) + "benign ending."
+
+    start = time.perf_counter()
+    verdict = detector.detect(adversarial_input)
+    elapsed_ms = (time.perf_counter() - start) * 1000
+
+    assert not verdict.is_injection
+    assert elapsed_ms < 50.0

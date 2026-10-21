@@ -48,14 +48,19 @@ class ProxyService:
         self._injection_detector = detector
 
     def _extract_user_text(self, request: ProxyChatRequest) -> str:
-        """Extrai todo o conteúdo de texto do usuário para análise de segurança."""
+        """Extrai todo o conteúdo textual de entrada para análise anti-injeção.
+
+        Inspeciona tanto `prompt` quanto `messages` conjuntamente para impedir
+        tentativas de bypass por sombreamento de campos no payload.
+        """
+        segments: list[str] = []
         if request.prompt:
-            return request.prompt
+            segments.append(request.prompt)
         if request.messages:
-            return " ".join(
+            segments.extend(
                 msg.content for msg in request.messages if msg.role != "model"
             )
-        return ""
+        return " ".join(segments)
 
     def _prepare_gemini_payload(
         self, request: ProxyChatRequest
@@ -69,9 +74,9 @@ class ProxyService:
         contents: list[dict[str, Any]] = []
 
         if request.prompt is not None:
-            original_total_len = len(request.prompt)
+            original_total_len += len(request.prompt)
             inbound_res = self._sanitizer.sanitize(request.prompt)
-            sanitized_total_len = len(inbound_res.sanitized_text)
+            sanitized_total_len += len(inbound_res.sanitized_text)
             all_detected_entities.extend(inbound_res.entities_detected)
 
             contents.append({
@@ -79,7 +84,7 @@ class ProxyService:
                 "parts": [{"text": inbound_res.sanitized_text}],
             })
 
-        elif request.messages is not None:
+        if request.messages is not None:
             for msg in request.messages:
                 original_total_len += len(msg.content)
                 inbound_res = self._sanitizer.sanitize(msg.content)

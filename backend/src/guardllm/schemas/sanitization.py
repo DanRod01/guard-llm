@@ -4,12 +4,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class PIIType(StrEnum):
-    """Categorias de PII detectáveis pelo GuardLLM."""
+    """Categorias de PII e segredos corporativos detectáveis pelo GuardLLM."""
 
     CPF = "CPF"
+    CNPJ = "CNPJ"
     EMAIL = "EMAIL"
     CREDIT_CARD = "CREDIT_CARD"
     API_KEY = "API_KEY"
+    JWT_TOKEN = "JWT_TOKEN"
 
 
 class RedactedEntity(BaseModel):
@@ -31,6 +33,7 @@ class SanitizeRequest(BaseModel):
     text: str = Field(
         ...,
         min_length=1,
+        max_length=32000,
         description="Texto ou prompt a ser inspecionado contra vazamento de PII",
     )
 

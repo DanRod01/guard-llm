@@ -6,7 +6,7 @@
 [![Package Manager](https://img.shields.io/badge/Package%20Manager-uv-purple.svg)](https://astral.sh/uv)
 [![Code Style](https://img.shields.io/badge/Code%20Style-Ruff-black.svg)](https://docs.astral.sh/ruff/)
 [![Type Checking](https://img.shields.io/badge/Types-Mypy%20Strict-blue.svg)](https://mypy-lang.org/)
-[![Tests Passing](https://img.shields.io/badge/Tests-47%20passed%20(0.31s)-brightgreen.svg)](https://docs.pytest.org/)
+[![Tests Passing](https://img.shields.io/badge/Tests-54%20passed%20(0.36s)-brightgreen.svg)](https://docs.pytest.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 O **GuardLLM** é um proxy reverso defensivo de alta performance e segurança de ponta a ponta projetado para inspecionar, sanitizar e auditar interações com Modelos de Linguagem (LLMs) em produção. 
@@ -176,9 +176,9 @@ flowchart TD
   - Configuração *fail-fast* via `pydantic-settings` e gerenciamento de *lifespan*.
   - Probes de saúde com `StrEnum` e timestamps conscientes em UTC (mitigação CWE-200).
 - [x] **Fase 2: Motor de Sanitização Bidirecional de PII (OWASP LLM06)**
-  - Detecção e mascaramento de CPFs com validação matemática do **Módulo 11** da Receita Federal (zero falsos positivos em IDs numéricos).
+  - Detecção e mascaramento de **CPFs** e **CNPJs** com validação matemática do **Módulo 11** da Receita Federal (zero falsos positivos em IDs numéricos).
   - Mascaramento de cartões de crédito via **Algoritmo de Luhn** (Módulo 10 - ISO/IEC 7812).
-  - Assinaturas de segredos e chaves de nuvem (Google Gemini, OpenAI, AWS IAM, GitHub Tokens).
+  - Assinaturas de **JSON Web Tokens (JWT - RFC 7519)** e segredos de nuvem (Google Gemini, OpenAI, AWS IAM, GitHub Tokens).
   - Algoritmo de resolução de sobreposição de spans com ordenação gananciosa e reconstrução linear $O(N)$.
 - [x] **Fase 3: Proxy Reversivo Assíncrono com Dual-Gate & Integração Gemini**
   - Orquestrador de proxy com proteção de entrada (*Inbound Gate*) e saída (*Outbound Gate*).
@@ -292,9 +292,11 @@ Quando uma transação ou ataque é interceptado, o GuardLLM emite um JSON estru
 
 ## 🔒 Postura de Segurança (AppSec Highlights)
 
-- **Mitigação OWASP LLM01**: Bloqueio ativo de tentativas de sobrescrita de regras, personas sem filtros e manipulação de delimitadores antes de atingir o modelo.
-- **Conformidade CWE-532**: Logs de auditoria nunca armazenam números de cartão, CPFs ou chaves de API em texto puro. Apenas metadados higienizados trafegam para o SIEM.
-- **Rastreabilidade com Correlation ID**: Cabeçalho `X-Correlation-ID` propagado em todas as requisições e respostas para correlacionar eventos no Datadog/Splunk.
+- **Mitigação OWASP LLM01 & LLM04**: Bloqueio ativo de tentativas de sobrescrita de regras, personas sem filtros e manipulação de delimitadores, além de limites estritos de payload (`max_length`) contra *Model Denial of Service*.
+- **Resistência a ReDoS (CWE-1333)**: Expressões regulares de inspeção com quantificadores de janela limitada (`.{0,100}?`), garantindo execução em tempo linear $O(N)$ imune a *backtracking* catastrófico.
+- **Pure ASGI Middleware & Hardening HTTP**: Middleware implementado diretamente sobre o protocolo ASGI (zero cópia de stream em memória) com injeção automática de `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy` e `Cache-Control: no-store`.
+- **Conformidade CWE-532**: Logs de auditoria nunca armazenam números de cartão, CPFs, CNPJs, JWTs ou chaves de API em texto puro. Apenas metadados higienizados trafegam para o SIEM.
+- **Rastreabilidade com Correlation ID**: Cabeçalho `X-Correlation-ID` propagado e sanitizado contra *Header Injection* em todas as requisições e respostas.
 - **Fail-Closed por Padrão**: Falhas em credenciais ou componentes de segurança interrompem a chamada antes de qualquer exposição de dados.
 - **Proteção Anti-Obfuscação**: Stripping automático de caracteres invisíveis (Zero-Width Unicode) projetados para contornar analisadores estáticos.
 - **Connection Pooling Persistente**: Reutilização de conexões TCP/TLS com o provedor de LLM, economizando centenas de milissegundos por requisição.

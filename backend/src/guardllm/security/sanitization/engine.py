@@ -3,9 +3,12 @@ from dataclasses import dataclass
 from guardllm.schemas.sanitization import PIIType, RedactedEntity, SanitizationResult
 from guardllm.security.sanitization.rules import (
     API_KEY_PATTERNS,
+    CNPJ_PATTERN,
     CPF_PATTERN,
     CREDIT_CARD_PATTERN,
     EMAIL_PATTERN,
+    JWT_PATTERN,
+    validate_cnpj_checksum,
     validate_cpf_checksum,
     validate_luhn_checksum,
 )
@@ -29,7 +32,18 @@ class SanitizerEngine:
 
         candidates: list[_CandidateSpan] = []
 
-        # 1. Detecção de Chaves de API e Segredos
+        # 1. Detecção de JSON Web Tokens (JWT - RFC 7519)
+        for match in JWT_PATTERN.finditer(text):
+            candidates.append(
+                _CandidateSpan(
+                    start=match.start(),
+                    end=match.end(),
+                    entity_type=PIIType.JWT_TOKEN,
+                    masked_value="[REDACTED_JWT]",
+                )
+            )
+
+        # 2. Detecção de Chaves de API e Segredos de Nuvem
         for pattern in API_KEY_PATTERNS:
             for match in pattern.finditer(text):
                 candidates.append(
@@ -41,7 +55,7 @@ class SanitizerEngine:
                     )
                 )
 
-        # 2. Detecção de E-mails
+        # 3. Detecção de E-mails
         for match in EMAIL_PATTERN.finditer(text):
             candidates.append(
                 _CandidateSpan(
@@ -52,7 +66,7 @@ class SanitizerEngine:
                 )
             )
 
-        # 3. Detecção e Validação Algorítmica de CPFs (Módulo 11)
+        # 4. Detecção e Validação Algorítmica de CPFs (Módulo 11)
         for match in CPF_PATTERN.finditer(text):
             raw_match = match.group()
             if validate_cpf_checksum(raw_match):
@@ -65,7 +79,20 @@ class SanitizerEngine:
                     )
                 )
 
-        # 4. Detecção e Validação Algorítmica de Cartões de Crédito (Luhn)
+        # 5. Detecção e Validação Algorítmica de CNPJs (Módulo 11 - 14 dígitos)
+        for match in CNPJ_PATTERN.finditer(text):
+            raw_match = match.group()
+            if validate_cnpj_checksum(raw_match):
+                candidates.append(
+                    _CandidateSpan(
+                        start=match.start(),
+                        end=match.end(),
+                        entity_type=PIIType.CNPJ,
+                        masked_value="[REDACTED_CNPJ]",
+                    )
+                )
+
+        # 6. Detecção e Validação Algorítmica de Cartões de Crédito (Luhn)
         for match in CREDIT_CARD_PATTERN.finditer(text):
             raw_match = match.group()
             if validate_luhn_checksum(raw_match):

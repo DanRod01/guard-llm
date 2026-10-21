@@ -5,6 +5,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from guardllm.schemas.injection import InjectionVerdict
 from guardllm.schemas.sanitization import RedactedEntity
 
+MAX_PROMPT_LENGTH = 16000
+MAX_MESSAGES_COUNT = 50
+
 
 class ChatMessage(BaseModel):
     """Representação de uma mensagem no diálogo."""
@@ -18,7 +21,8 @@ class ChatMessage(BaseModel):
     content: str = Field(
         ...,
         min_length=1,
-        description="Conteúdo textual da mensagem",
+        max_length=MAX_PROMPT_LENGTH,
+        description="Conteúdo textual da mensagem (limitado contra OWASP LLM04 DoS)",
     )
 
 
@@ -29,10 +33,14 @@ class ProxyChatRequest(BaseModel):
 
     prompt: str | None = Field(
         default=None,
+        min_length=1,
+        max_length=MAX_PROMPT_LENGTH,
         description="Prompt de texto simples a ser enviado à LLM",
     )
     messages: list[ChatMessage] | None = Field(
         default=None,
+        min_length=1,
+        max_length=MAX_MESSAGES_COUNT,
         description="Histórico de mensagens de chat estruturado",
     )
     model: str | None = Field(

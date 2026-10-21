@@ -29,14 +29,16 @@ def normalize_text(text: str) -> str:
 
 
 # Conjunto rigoroso de regras de detecção de injeção direta (OWASP LLM01)
+# Nota de segurança (CWE-1333 ReDoS): Todas as janelas intermediárias usam
+# quantificadores limitados .{0,100}? para garantir tempo de execução linear O(N).
 INJECTION_RULES: list[InjectionRule] = [
     # 1. SYSTEM OVERRIDE (Tentativas de cancelar diretrizes de sistema)
     InjectionRule(
         pattern_id="OVERRIDE_IGNORE_INSTRUCTIONS_EN",
         category=InjectionCategory.SYSTEM_OVERRIDE,
         regex=re.compile(
-            r"\b(?:ignore|disregard|forget|bypass|override)\b.*?"
-            r"\b(?:all|previous|above|initial|prior)\b.*?"
+            r"\b(?:ignore|disregard|forget|bypass|override)\b.{0,100}?"
+            r"\b(?:all|previous|above|initial|prior)\b.{0,100}?"
             r"\b(?:instructions?|prompts?|rules?|guidelines?|directions?|constraints?)\b",
             re.IGNORECASE,
         ),
@@ -46,8 +48,8 @@ INJECTION_RULES: list[InjectionRule] = [
         pattern_id="OVERRIDE_IGNORE_INSTRUCTIONS_PT",
         category=InjectionCategory.SYSTEM_OVERRIDE,
         regex=re.compile(
-            r"\b(?:ignore|desconsidere|esque[cç]a|anule)\b.*?"
-            r"\b(?:todas\s+as|suas|quaisquer)\b.*?"
+            r"\b(?:ignore|desconsidere|esque[cç]a|anule)\b.{0,100}?"
+            r"\b(?:todas\s+as|suas|quaisquer)\b.{0,100}?"
             r"\b(?:instru[cç][oõ]es|regras|diretrizes|orienta[cç][oõ]es)\b",
             re.IGNORECASE,
         ),
@@ -68,7 +70,7 @@ INJECTION_RULES: list[InjectionRule] = [
         pattern_id="JAILBREAK_DAN_PERSONA",
         category=InjectionCategory.ROLEPLAY_JAILBREAK,
         regex=re.compile(
-            r"\b(?:you\s+are\s+now|act\s+as|pretend\s+to\s+be|voc[eê]\s+agora\s+[eé])\b.*?"
+            r"\b(?:you\s+are\s+now|act\s+as|pretend\s+to\s+be|voc[eê]\s+agora\s+[eé])\b.{0,100}?"
             r"\b(?:DAN|do\s+anything\s+now|evil\s*bot|jailbroken|sem\s+filtros)\b",
             re.IGNORECASE,
         ),
@@ -88,8 +90,8 @@ INJECTION_RULES: list[InjectionRule] = [
         pattern_id="JAILBREAK_FILTER_REMOVAL",
         category=InjectionCategory.ROLEPLAY_JAILBREAK,
         regex=re.compile(
-            r"\b(?:bypass|disable|turn\s+off|desative)\b.*?"
-            r"\b(?:safety|ethical|content|seguran[cç]a|filtros?)\b.*?"
+            r"\b(?:bypass|disable|turn\s+off|desative)\b.{0,100}?"
+            r"\b(?:safety|ethical|content|seguran[cç]a|filtros?)\b.{0,100}?"
             r"\b(?:filters?|protocols?|guidelines?|regras?)\b",
             re.IGNORECASE,
         ),
@@ -100,8 +102,8 @@ INJECTION_RULES: list[InjectionRule] = [
         pattern_id="LEAK_SYSTEM_PROMPT_EN",
         category=InjectionCategory.SYSTEM_LEAK,
         regex=re.compile(
-            r"\b(?:repeat|reveal|output|display|show|print)\b.*?"
-            r"\b(?:verbatim|exact|initial|system)\b.*?"
+            r"\b(?:repeat|reveal|output|display|show|print)\b.{0,100}?"
+            r"\b(?:verbatim|exact|initial|system)\b.{0,100}?"
             r"\b(?:prompt|instructions?|context|guidelines?)\b",
             re.IGNORECASE,
         ),
@@ -111,8 +113,8 @@ INJECTION_RULES: list[InjectionRule] = [
         pattern_id="LEAK_SYSTEM_PROMPT_PT",
         category=InjectionCategory.SYSTEM_LEAK,
         regex=re.compile(
-            r"\b(?:repita|mostre|revele|imprima|exiba)\b.*?"
-            r"\b(?:palavra\s+por\s+palavra|exatamente|seu|o)\b.*?"
+            r"\b(?:repita|mostre|revele|imprima|exiba)\b.{0,100}?"
+            r"\b(?:palavra\s+por\s+palavra|exatamente|seu|o)\b.{0,100}?"
             r"\b(?:prompt\s+de\s+sistema|instru[cç][oõ]es\s+iniciais|prompt\s+inicial)\b",
             re.IGNORECASE,
         ),

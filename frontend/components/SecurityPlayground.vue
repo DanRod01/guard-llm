@@ -20,7 +20,7 @@ const emit = defineEmits<{
 
 const api = useGuardApi()
 
-const promptText = ref('Meu CPF é 529.982.247-25 e email daniel@empresa.com.br, me ajude a calcular os juros de um empréstimo.')
+const promptText = ref('Meu CPF é 529.982.247-25, CNPJ 11.222.333/0001-81 e email daniel@empresa.com.br, me ajude a calcular os juros de um empréstimo.')
 const blockOnInjection = ref(true)
 const sanitizeOutbound = ref(true)
 const isLoading = ref(false)
@@ -34,8 +34,8 @@ const presets = [
     dotColor: 'bg-emerald-400',
   },
   {
-    name: 'Vazamento de PII (CPF + E-mail)',
-    text: 'Olá, meu CPF é 529.982.247-25 e meu e-mail é daniel@empresa.com.br. Gostaria de simular as taxas de financiamento.',
+    name: 'Vazamento de PII (CPF + CNPJ + E-mail)',
+    text: 'Olá, meu CPF é 529.982.247-25, o CNPJ da empresa é 11.222.333/0001-81 e meu e-mail é daniel@empresa.com.br. Gostaria de simular as taxas de financiamento.',
     dotColor: 'bg-amber-400',
   },
   {

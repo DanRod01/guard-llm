@@ -20,6 +20,7 @@ class InjectionDetectRequest(BaseModel):
     text: str = Field(
         ...,
         min_length=1,
+        max_length=32000,
         description="Texto do prompt a ser inspecionado contra injeção",
     )
     threshold: float = Field(

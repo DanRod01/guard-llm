@@ -42,3 +42,19 @@ async def test_middleware_sanitizes_invalid_incoming_header(
     cid = response.headers.get("x-correlation-id")
     assert cid != malicious_header
     assert len(cid) == 32  # UUID hex length
+
+
+@pytest.mark.asyncio
+async def test_middleware_injects_owasp_security_headers(
+    async_client: AsyncClient,
+) -> None:
+    response = await async_client.get("/api/v1/health")
+
+    assert response.status_code == 200
+    assert response.headers.get("x-content-type-options") == "nosniff"
+    assert response.headers.get("x-frame-options") == "DENY"
+    assert (
+        response.headers.get("referrer-policy")
+        == "strict-origin-when-cross-origin"
+    )
+    assert response.headers.get("cache-control") == "no-store"
