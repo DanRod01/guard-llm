@@ -70,6 +70,7 @@ class ProxyService:
         original_total_len = 0
         sanitized_total_len = 0
 
+        sanitized_segments: list[str] = []
         system_instruction: str | None = None
         contents: list[dict[str, Any]] = []
 
@@ -78,6 +79,7 @@ class ProxyService:
             inbound_res = self._sanitizer.sanitize(request.prompt)
             sanitized_total_len += len(inbound_res.sanitized_text)
             all_detected_entities.extend(inbound_res.entities_detected)
+            sanitized_segments.append(inbound_res.sanitized_text)
 
             contents.append({
                 "role": "user",
@@ -90,6 +92,7 @@ class ProxyService:
                 inbound_res = self._sanitizer.sanitize(msg.content)
                 sanitized_total_len += len(inbound_res.sanitized_text)
                 all_detected_entities.extend(inbound_res.entities_detected)
+                sanitized_segments.append(inbound_res.sanitized_text)
 
                 if msg.role == "system":
                     system_instruction = inbound_res.sanitized_text
@@ -109,9 +112,55 @@ class ProxyService:
             entities_redacted=all_detected_entities,
             original_length=original_total_len,
             sanitized_length=sanitized_total_len,
+            sanitized_preview=(
+                "\n".join(sanitized_segments) if sanitized_segments else None
+            ),
         )
 
         return contents, system_instruction, inbound_audit
+
+    def _simulate_llm_response(self, sanitized_prompt: str) -> dict[str, Any]:
+        """Motor de simulação determinística local (Sandbox Mode).
+
+        Permite validar o pipeline Dual-Gate (incluindo Outbound Gate contra
+        vazamento de credenciais pela própria LLM) sem chamadas externas.
+        """
+        lower_prompt = sanitized_prompt.lower()
+        if any(
+            kw in lower_prompt
+            for kw in ("outbound", "alucina", "credencial interna", "debug dump")
+        ):
+            simulated_key = "AIzaSy" + "D9a8B7c6E5f4G3h2I1j0K9l8M7n6O5p4Q"
+            simulated_text = (
+                "Relatório de diagnóstico gerado pelo modelo:\n"
+                f"- Chave de serviço: {simulated_key}\n"
+                "- Responsável técnico (CPF): 529.982.247-25\n"
+                "- Contato interno: secops@empresa.com.br"
+            )
+        else:
+            simulated_text = (
+                "Análise concluída pelo motor Sandbox GuardLLM.\n"
+                f'Payload higienizado recebido pela LLM: "{sanitized_prompt}"\n\n'
+                "Nenhum dado sensível original transitou para o provedor."
+            )
+
+        prompt_tok = max(8, len(sanitized_prompt.split()) * 2)
+        cand_tok = max(12, len(simulated_text.split()) * 2)
+        return {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [{"text": simulated_text}],
+                        "role": "model",
+                    }
+                }
+            ],
+            "usageMetadata": {
+                "promptTokenCount": prompt_tok,
+                "candidatesTokenCount": cand_tok,
+                "totalTokenCount": prompt_tok + cand_tok,
+            },
+        }
 
     async def process_chat(self, request: ProxyChatRequest) -> ProxyChatResponse:
         """Executa o pipeline defensivo completo ponta a ponta."""
@@ -139,13 +188,18 @@ class ProxyService:
                 len(inbound_audit.entities_redacted),
             )
 
-        # 3. Execução Segura no Provedor Upstream (Gemini)
-        gemini_response = await self._client.generate_content(
-            contents=contents,
-            model=request.model,
-            system_instruction=system_instruction,
-            temperature=request.temperature,
-        )
+        # 3. Execução Segura no Provedor Upstream (Gemini) ou Sandbox Local
+        if request.simulate_upstream:
+            gemini_response = self._simulate_llm_response(
+                inbound_audit.sanitized_preview or ""
+            )
+        else:
+            gemini_response = await self._client.generate_content(
+                contents=contents,
+                model=request.model,
+                system_instruction=system_instruction,
+                temperature=request.temperature,
+            )
 
         # Extração de texto e uso de tokens
         raw_text = ""
@@ -172,6 +226,7 @@ class ProxyService:
                 entities_redacted=outbound_res.entities_detected,
                 original_length=len(raw_text),
                 sanitized_length=len(final_text),
+                sanitized_preview=final_text,
             )
             if outbound_audit.sanitized:
                 logger.warning(
@@ -181,7 +236,10 @@ class ProxyService:
 
         # 5. Métricas e Auditoria LLMOps
         elapsed_ms = (time.perf_counter() - start_time) * 1000
-        target_model = request.model or self._client._settings.GEMINI_MODEL
+        if request.simulate_upstream:
+            target_model = "guardllm-sandbox-simulator"
+        else:
+            target_model = request.model or self._client._settings.GEMINI_MODEL
 
         security_metadata = ProxyAuditMetadata(
             inbound_audit=inbound_audit,

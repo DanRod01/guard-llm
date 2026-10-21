@@ -61,6 +61,13 @@ class ProxyChatRequest(BaseModel):
         default=True,
         description="Se verdadeiro, bloqueia preventivamente tentativas de injeção",
     )
+    simulate_upstream: bool = Field(
+        default=False,
+        description=(
+            "Se verdadeiro, executa o pipeline Dual-Gate com simulação determinística "
+            "local (útil para validação de Outbound Gate e ambientes sem API key)"
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_content_presence(self) -> "ProxyChatRequest":
@@ -86,6 +93,10 @@ class SecurityGateAudit(BaseModel):
     )
     original_length: int = Field(description="Comprimento original do texto")
     sanitized_length: int = Field(description="Comprimento do texto após sanitização")
+    sanitized_preview: str | None = Field(
+        default=None,
+        description="Texto higienizado resultante com marcadores [REDACTED_...]",
+    )
 
 
 class ProxyAuditMetadata(BaseModel):

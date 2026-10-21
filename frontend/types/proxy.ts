@@ -10,6 +10,7 @@ export interface SecurityGateAudit {
   entities_redacted: RedactedEntity[]
   original_length: number
   sanitized_length: number
+  sanitized_preview?: string | null
 }
 
 export interface InjectionVerdict {
@@ -46,4 +47,5 @@ export interface ProxyChatRequest {
   temperature?: number | null
   sanitize_outbound?: boolean
   block_on_injection?: boolean
+  simulate_upstream?: boolean
 }

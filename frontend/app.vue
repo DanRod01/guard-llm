@@ -14,7 +14,7 @@ const isRefreshing = ref(false)
 const stats = ref<AuditStats | null>(null)
 const events = ref<AuditEvent[]>([])
 const autoRefresh = ref(true)
-let refreshInterval: any = null
+let refreshInterval: ReturnType<typeof setInterval> | null = null
 
 const loadData = async (silent = false) => {
   if (!silent) isRefreshing.value = true

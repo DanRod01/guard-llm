@@ -9,6 +9,7 @@ import {
   Check,
   Search,
   FileText,
+  Download,
 } from '@lucide/vue'
 import type { AuditEvent } from '~/types/audit'
 
@@ -24,15 +25,41 @@ const emit = defineEmits<{
   (e: 'toggle-auto-refresh'): void
 }>()
 
+type FilterCategory = 'ALL' | 'SUCCESS' | 'BLOCKED' | 'PII' | 'ERROR'
+
 const selectedEvent = ref<AuditEvent | null>(null)
 const copiedId = ref<string | null>(null)
 const searchQuery = ref('')
-const selectedFilter = ref<'ALL' | 'SUCCESS' | 'BLOCKED' | 'PII' | 'ERROR'>('ALL')
+const selectedFilter = ref<FilterCategory>('ALL')
+
+const filterTabs: { key: FilterCategory; label: string }[] = [
+  { key: 'ALL', label: 'Todos' },
+  { key: 'SUCCESS', label: '200 OK' },
+  { key: 'BLOCKED', label: '403 Bloqueados' },
+  { key: 'PII', label: 'PII Sanitizada' },
+  { key: 'ERROR', label: 'Falhas Upstream' },
+]
 
 const copyId = (id: string) => {
   navigator.clipboard.writeText(id)
   copiedId.value = id
   setTimeout(() => (copiedId.value = null), 2000)
+}
+
+const exportJsonl = () => {
+  if (filteredEvents.value.length === 0) return
+  const jsonlContent = filteredEvents.value
+    .map((ev: AuditEvent) => JSON.stringify(ev))
+    .join('\n')
+  const blob = new Blob([jsonlContent], { type: 'application/x-ndjson;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `guardllm-siem-audit-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.jsonl`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
 }
 
 const formatTime = (isoString: string) => {
@@ -49,8 +76,8 @@ const formatTime = (isoString: string) => {
   }
 }
 
-const filteredEvents = computed(() => {
-  return props.events.filter((ev) => {
+const filteredEvents = computed<AuditEvent[]>(() => {
+  return props.events.filter((ev: AuditEvent) => {
     // Type Filter
     if (selectedFilter.value === 'SUCCESS' && ev.event_type !== 'TRANSACTION_SUCCESS') return false
     if (selectedFilter.value === 'BLOCKED' && ev.event_type !== 'PROMPT_INJECTION_BLOCKED') return false
@@ -99,6 +126,17 @@ const filteredEvents = computed(() => {
           />
         </div>
 
+        <!-- Export JSONL Button -->
+        <button
+          @click="exportJsonl"
+          :disabled="filteredEvents.length === 0"
+          class="px-2.5 py-1.5 text-xs font-mono rounded-md bg-surface-950 hover:bg-surface-850 text-zinc-300 hover:text-white border border-surface-800 transition flex items-center gap-1.5 disabled:opacity-30 disabled:cursor-not-allowed"
+          title="Exportar trilha forense em JSON Lines (.jsonl)"
+        >
+          <Download class="w-3.5 h-3.5 text-zinc-400" />
+          <span>Exportar .jsonl</span>
+        </button>
+
         <!-- Auto-Refresh Toggle -->
         <button
           @click="emit('toggle-auto-refresh')"
@@ -136,15 +174,9 @@ const filteredEvents = computed(() => {
     <!-- Category Filters Tabs -->
     <div class="px-4 py-2 border-b border-surface-800/80 bg-surface-950/60 flex items-center space-x-1 overflow-x-auto text-xs font-mono">
       <button
-        v-for="tab in [
-          { key: 'ALL', label: 'Todos' },
-          { key: 'SUCCESS', label: '200 OK' },
-          { key: 'BLOCKED', label: '403 Bloqueados' },
-          { key: 'PII', label: 'PII Sanitizada' },
-          { key: 'ERROR', label: 'Falhas Upstream' },
-        ]"
+        v-for="tab in filterTabs"
         :key="tab.key"
-        @click="selectedFilter = tab.key as any"
+        @click="selectedFilter = tab.key"
         class="px-2.5 py-1 rounded text-[11px] font-medium transition"
         :class="selectedFilter === tab.key
           ? 'bg-surface-800 text-zinc-100 font-semibold'
@@ -239,13 +271,23 @@ const filteredEvents = computed(() => {
 
             <!-- PIIs Higienizadas -->
             <td class="py-2.5 px-4 whitespace-nowrap">
-              <div v-if="ev.security.inbound_entity_types.length > 0" class="flex flex-wrap gap-1">
+              <div
+                v-if="ev.security.inbound_entity_types.length > 0 || ev.security.outbound_entity_types.length > 0"
+                class="flex flex-wrap gap-1"
+              >
                 <span
-                  v-for="p in ev.security.inbound_entity_types"
-                  :key="p"
+                  v-for="(p, idx) in ev.security.inbound_entity_types"
+                  :key="`in-${idx}`"
                   class="px-1.5 py-0.2 rounded text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/20"
                 >
-                  {{ p }}
+                  IN:{{ p }}
+                </span>
+                <span
+                  v-for="(p, idx) in ev.security.outbound_entity_types"
+                  :key="`out-${idx}`"
+                  class="px-1.5 py-0.2 rounded text-[10px] bg-amber-500/20 text-amber-200 border border-amber-500/30"
+                >
+                  OUT:{{ p }}
                 </span>
               </div>
               <span v-else class="text-zinc-600">-</span>

@@ -41,13 +41,19 @@ def create_application() -> FastAPI:
         redoc_url="/redoc" if not settings.is_production else None,
     )
 
-    # Restrictive CORS configuration
+    # Restrictive CORS configuration with explicit header exposure for SIEM tracing
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.ALLOWED_ORIGINS,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_headers=[
+            "Content-Type",
+            "Authorization",
+            "X-Correlation-ID",
+            "X-Request-ID",
+        ],
+        expose_headers=["X-Correlation-ID"],
     )
 
     # Distributed tracing and SIEM correlation
