@@ -225,17 +225,35 @@ flowchart TD
 
 ## ⚡ Começando (Quick Start)
 
-### Pré-requisitos
-- Python 3.11 ou superior e [uv](https://astral.sh/uv)
-- Node.js 18+ e npm
+### 🐳 Opção 1: Execução com Docker Compose (Recomendada)
 
-### 1. Clonar o repositório
+Com o Docker instalado, você sobe o proxy reverso FastAPI e o dashboard SOC em Nuxt 3 de forma orquestrada:
+
 ```bash
+# 1. Clone o repositório
 git clone https://github.com/DanRod01/guard-llm.git
 cd guard-llm
-```
 
-### 2. Configurar e Executar o Backend
+# 2. Configure sua chave de API
+export GEMINI_API_KEY="sua_chave_gemini" # Linux/macOS
+$env:GEMINI_API_KEY="sua_chave_gemini"   # Windows PowerShell
+
+# 3. Inicie todos os serviços com orquestração automática
+docker compose up -d --build
+```
+> * **Dashboard SOC (Frontend):** `http://localhost:3000`  
+> * **Swagger UI (Backend):** `http://localhost:8000/docs`  
+> * **Probe de Saúde:** `http://localhost:8000/api/v1/health`
+
+---
+
+### 💻 Opção 2: Execução Manual Local
+
+#### Pré-requisitos
+- Python 3.11 ou superior e [uv](https://astral.sh/uv)
+- Node.js 18+ e pnpm (ou npm)
+
+#### 1. Configurar e Executar o Backend
 ```bash
 cd backend
 uv sync --extra dev
@@ -249,12 +267,12 @@ uv run uvicorn guardllm.main:app --reload --port 8000
 - Proxy Defensivo: `POST http://127.0.0.1:8000/api/v1/proxy/chat`
 - Feed de Auditoria: `GET http://127.0.0.1:8000/api/v1/audit/events`
 
-### 3. Configurar e Executar o Dashboard (Frontend)
+#### 2. Configurar e Executar o Dashboard (Frontend)
 Em um novo terminal:
 ```bash
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 Acesse o Dashboard de Operações de Segurança em **[http://localhost:3000](http://localhost:3000)**.
 

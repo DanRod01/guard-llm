@@ -1,0 +1,71 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  backend-quality-and-tests:
+    name: Backend Quality (Ruff, Mypy Strict) & Pytest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies and dev tools
+        run: uv sync --extra dev
+
+      - name: Code Quality & Linting (Ruff)
+        run: uv run ruff check .
+
+      - name: Strict Type Checking (Mypy Strict)
+        run: uv run mypy src
+
+      - name: Automated Test Suite (Pytest-Asyncio)
+        run: uv run pytest -v --tb=short
+        env:
+          GEMINI_API_KEY: "test-gemini-key-ci"
+
+  frontend-build:
+    name: Frontend Build & Typecheck (Nuxt 3)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Production Build Test
+        run: pnpm run build
