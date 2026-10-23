@@ -53,10 +53,7 @@ async def test_middleware_injects_owasp_security_headers(
     assert response.status_code == 200
     assert response.headers.get("x-content-type-options") == "nosniff"
     assert response.headers.get("x-frame-options") == "DENY"
-    assert (
-        response.headers.get("referrer-policy")
-        == "strict-origin-when-cross-origin"
-    )
+    assert response.headers.get("referrer-policy") == "strict-origin-when-cross-origin"
     assert response.headers.get("cache-control") == "no-store"
 
 

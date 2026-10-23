@@ -47,11 +47,8 @@ async def get_audit_stats() -> AuditStats:
     "/events",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Limpar Histórico Local de Auditoria",
-    description=(
-        "Limpa o buffer circular em memória (útil para reinício de sessões)."
-    ),
+    description=("Limpa o buffer circular em memória (útil para reinício de sessões)."),
 )
 async def clear_audit_events() -> None:
     """Limpa os eventos armazenados no ring buffer em memória."""
     audit_logger.clear()
-

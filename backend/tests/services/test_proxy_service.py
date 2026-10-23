@@ -37,9 +37,7 @@ async def test_proxy_service_inbound_masks_pii_before_llm() -> None:
 
     valid_cpf = "529.982.247-25"
     email = "contato@empresa.com"
-    request = ProxyChatRequest(
-        prompt=f"O cliente {email} possui o CPF {valid_cpf}."
-    )
+    request = ProxyChatRequest(prompt=f"O cliente {email} possui o CPF {valid_cpf}.")
 
     response = await service.process_chat(request)
 

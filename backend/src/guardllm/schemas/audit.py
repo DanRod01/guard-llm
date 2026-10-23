@@ -170,5 +170,3 @@ class AuditEventsListResponse(BaseModel):
         ...,
         description="Lista ordenada dos eventos (mais recentes primeiro)",
     )
-
-

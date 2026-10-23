@@ -81,10 +81,12 @@ class ProxyService:
             all_detected_entities.extend(inbound_res.entities_detected)
             sanitized_segments.append(inbound_res.sanitized_text)
 
-            contents.append({
-                "role": "user",
-                "parts": [{"text": inbound_res.sanitized_text}],
-            })
+            contents.append(
+                {
+                    "role": "user",
+                    "parts": [{"text": inbound_res.sanitized_text}],
+                }
+            )
 
         if request.messages is not None:
             for msg in request.messages:
@@ -98,14 +100,14 @@ class ProxyService:
                     system_instruction = inbound_res.sanitized_text
                 else:
                     gemini_role = (
-                        "model"
-                        if msg.role in ("assistant", "model")
-                        else "user"
+                        "model" if msg.role in ("assistant", "model") else "user"
                     )
-                    contents.append({
-                        "role": gemini_role,
-                        "parts": [{"text": inbound_res.sanitized_text}],
-                    })
+                    contents.append(
+                        {
+                            "role": gemini_role,
+                            "parts": [{"text": inbound_res.sanitized_text}],
+                        }
+                    )
 
         inbound_audit = SecurityGateAudit(
             sanitized=len(all_detected_entities) > 0,
