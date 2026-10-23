@@ -1,0 +1,12 @@
+# Gitleaks Configuration for GuardLLM
+title = "GuardLLM Gitleaks Config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Synthetic test fixtures and mocks used in automated security tests"
+paths = [
+  '''backend/tests/.*''',
+  '''backend/\.env\.example''',
+]

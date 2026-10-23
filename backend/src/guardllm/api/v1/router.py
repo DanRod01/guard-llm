@@ -30,4 +30,3 @@ api_router.include_router(
     prefix="/audit",
     tags=["Audit & Telemetry"],
 )
-

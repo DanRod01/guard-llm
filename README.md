@@ -1,5 +1,9 @@
 # 🛡️ GuardLLM — Defensive Security Reverse Proxy for LLMs
 
+[![CI/CD DevSecOps](https://github.com/DanRod01/guard-llm/actions/workflows/ci.yml/badge.svg)](https://github.com/DanRod01/guard-llm/actions/workflows/ci.yml)
+[![Docker GHCR](https://img.shields.io/badge/Container%20Registry-GHCR-blue?logo=docker&logoColor=white)](https://github.com/DanRod01/guard-llm/pkgs/container/guardllm-backend)
+[![Security: Gitleaks](https://img.shields.io/badge/Security-Gitleaks%20Passed-2ea44f.svg)](https://github.com/gitleaks/gitleaks)
+[![Security: Trivy](https://img.shields.io/badge/Security-Trivy%20SCA-1904da.svg)](https://aquasecurity.github.io/trivy/)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-ASGI-009688.svg)](https://fastapi.tiangolo.com/)
 [![Pydantic V2](https://img.shields.io/badge/Pydantic-V2%20(Rust%20Core)-e92063.svg)](https://docs.pydantic.dev/)

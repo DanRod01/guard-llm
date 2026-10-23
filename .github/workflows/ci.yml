@@ -1,4 +1,4 @@
-name: CI Pipeline
+name: CI/CD DevSecOps Pipeline
 
 on:
   push:
@@ -10,7 +10,31 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
+  # --------------------------------------------------------------------------
+  # 1. DevSecOps: Automated Secret Detection (Gitleaks)
+  # --------------------------------------------------------------------------
+  secret-scan:
+    name: DevSecOps Secret Detection (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks Secret Detector
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # --------------------------------------------------------------------------
+  # 2. Backend Quality: Ruff (Lint & Format), Mypy Strict & Pytest
+  # --------------------------------------------------------------------------
   backend-quality-and-tests:
     name: Backend Quality (Ruff, Mypy Strict) & Pytest
     runs-on: ubuntu-latest
@@ -28,14 +52,17 @@ jobs:
           version: "latest"
           enable-cache: true
 
-      - name: Set up Python
+      - name: Set up Python 3.11
         run: uv python install 3.11
 
       - name: Install dependencies and dev tools
         run: uv sync --extra dev
 
-      - name: Code Quality & Linting (Ruff)
+      - name: Code Quality & Linting (Ruff Check)
         run: uv run ruff check .
+
+      - name: Code Formatting Integrity (Ruff Format Check)
+        run: uv run ruff format --check .
 
       - name: Strict Type Checking (Mypy Strict)
         run: uv run mypy src
@@ -45,8 +72,11 @@ jobs:
         env:
           GEMINI_API_KEY: "test-gemini-key-ci"
 
-  frontend-build:
-    name: Frontend Build & Typecheck (Nuxt 3)
+  # --------------------------------------------------------------------------
+  # 3. Frontend Quality: Vue-TSC Typechecking & Nuxt 3 Production Build
+  # --------------------------------------------------------------------------
+  frontend-quality-and-build:
+    name: Frontend Quality (Vue-TSC) & Build (Nuxt 3)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -71,14 +101,40 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Strict TypeScript Typechecking (Vue-TSC)
+        run: pnpm run typecheck
+
       - name: Production Build Test
         run: pnpm run build
         env:
           NUXT_PUBLIC_API_BASE_URL: "http://localhost:8000"
 
-  docker-verification:
-    name: Docker Multi-Stage Build Verification
-    needs: [backend-quality-and-tests, frontend-build]
+  # --------------------------------------------------------------------------
+  # 4. DevSecOps: Software Composition Analysis (SCA) with Trivy
+  # --------------------------------------------------------------------------
+  vulnerability-scan:
+    name: DevSecOps Vulnerability Scan (Trivy SCA)
+    needs: [backend-quality-and-tests, frontend-quality-and-build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@0.29.0
+        with:
+          scan-type: "fs"
+          ignore-unfixed: true
+          format: "table"
+          severity: "CRITICAL,HIGH"
+          exit-code: "0"
+
+  # --------------------------------------------------------------------------
+  # 5. Continuous Delivery (CD): Multi-Stage Build & Push to GHCR
+  # --------------------------------------------------------------------------
+  docker-cd:
+    name: Continuous Delivery (Build & Push to GHCR)
+    needs: [backend-quality-and-tests, frontend-quality-and-build, vulnerability-scan]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -87,5 +143,54 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker Compose Services
-        run: docker compose build
+      - name: Log in to GitHub Container Registry (GHCR)
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # --- Backend Container ---
+      - name: Extract Docker metadata for Backend
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/guardllm-backend
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and Push Backend Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # --- Frontend Container ---
+      - name: Extract Docker metadata for Frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/guardllm-frontend
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and Push Frontend Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

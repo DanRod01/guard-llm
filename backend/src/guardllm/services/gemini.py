@@ -80,9 +80,7 @@ class GeminiClient:
         payload: dict[str, Any] = {"contents": contents}
 
         if system_instruction:
-            payload["systemInstruction"] = {
-                "parts": [{"text": system_instruction}]
-            }
+            payload["systemInstruction"] = {"parts": [{"text": system_instruction}]}
 
         generation_config: dict[str, Any] = {}
         if temperature is not None:

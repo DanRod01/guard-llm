@@ -6,9 +6,7 @@ EMAIL_PATTERN: re.Pattern[str] = re.compile(
 )
 
 # CPF com máscara (000.000.000-00) ou apenas 11 dígitos numéricos
-CPF_PATTERN: re.Pattern[str] = re.compile(
-    r"\b(?:\d{3}\.\d{3}\.\d{3}-\d{2}|\d{11})\b"
-)
+CPF_PATTERN: re.Pattern[str] = re.compile(r"\b(?:\d{3}\.\d{3}\.\d{3}-\d{2}|\d{11})\b")
 
 # CNPJ com máscara (00.000.000/0000-00) ou apenas 14 dígitos numéricos
 CNPJ_PATTERN: re.Pattern[str] = re.compile(

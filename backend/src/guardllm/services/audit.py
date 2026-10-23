@@ -206,9 +206,7 @@ class AuditLogger:
         """Emite evento de erro upstream sem vazar dados confidenciais."""
         cid = correlation_id or get_correlation_id()
         severity = (
-            AuditSeverity.WARNING
-            if status_code < 500
-            else AuditSeverity.CRITICAL
+            AuditSeverity.WARNING if status_code < 500 else AuditSeverity.CRITICAL
         )
         event = AuditEvent(
             correlation_id=cid,
