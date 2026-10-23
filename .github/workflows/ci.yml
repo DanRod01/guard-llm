@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main, develop]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend-quality-and-tests:
     name: Backend Quality (Ruff, Mypy Strict) & Pytest
@@ -55,7 +59,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 10
 
       - name: Set up Node.js 22
         uses: actions/setup-node@v4
@@ -69,3 +73,19 @@ jobs:
 
       - name: Production Build Test
         run: pnpm run build
+        env:
+          NUXT_PUBLIC_API_BASE_URL: "http://localhost:8000"
+
+  docker-verification:
+    name: Docker Multi-Stage Build Verification
+    needs: [backend-quality-and-tests, frontend-build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Compose Services
+        run: docker compose build
