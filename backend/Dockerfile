@@ -11,7 +11,8 @@ ENV UV_LINK_MODE=copy
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
-# Copy application source code
+# Copy application source code and package metadata
+COPY README.md ./
 COPY src ./src
 RUN uv sync --frozen --no-dev
 
